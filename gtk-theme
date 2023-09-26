@@ -97,6 +97,7 @@ main() {
         echo "  $(basename "$0") [theme-name]"
         echo "  $(basename "$0") -i [icon-theme-name]"
         echo "  $(basename "$0") -c [cursor-theme-name] [cursor-theme-size]"
+        echo "  $(basename "$0") -f [font-name size]"
         exit 1
     fi
 
@@ -107,6 +108,20 @@ main() {
     elif [ "$1" = "-c" ]; then
         type=2
         shift
+    elif [ "$1" = "-f" ]; then
+        type=3
+        shift
+    fi
+
+    selected="$1"
+
+    if [ "$type" = 3 ]; then
+        if [ -n "$selected" ]; then
+            set_font "$selected"
+            return
+        else
+            exit 1
+        fi
     fi
 
     case "$type" in
@@ -127,8 +142,6 @@ main() {
     themes+=("${usrthemes[@]}")
 
     readarray -t sorted_themes < <(echo "${themes[@]}" | tr ' ' '\n' | sort -u)
-
-    selected="$1"
 
     if [ -z "$selected" ] || ! array_contains "${sorted_themes[*]} Adwaita" "$selected"; then
         echo "Available themes:"

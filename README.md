@@ -8,4 +8,5 @@ Usage:
   gtk-theme [theme-name]
   gtk-theme -i [icon-theme-name]
   gtk-theme -c [cursor-theme-name] [cursor-theme-size]
+  gtk-theme -f [font-name size]
 ```
