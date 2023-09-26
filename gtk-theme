@@ -1,0 +1,158 @@
+#!/bin/bash
+
+array_contains() {
+    for element in $1
+    do
+        if [ "$element" = "$2" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+set_gtk_property() {
+    # $1 property $2 value
+    if [ -f "$GTK2_RC_FILES" ]; then
+        if grep -q "^$1=" "$GTK2_RC_FILES"; then
+            sed -i -E "s/($1=\")(.*)(\")/\1$2\3/g" "$GTK2_RC_FILES"
+        else
+            echo "$1=\"$2\"" >> "$GTK2_RC_FILES"
+        fi
+    elif [ -f "$HOME/.gtkrc-2.0" ]; then
+        sed -i -E "s/($1=\")(.*)(\")/\1$2\3/g" "$HOME/.gtkrc-2.0"
+    elif [ -n "$GTK2_RC_FILES" ]; then        
+        mkdir -p "$(dirname "$GTK2_RC_FILES")"
+        echo "$1=\"$2\"" >> "$GTK2_RC_FILES"
+    fi
+    
+    if [ -f "$XDG_CONFIG_HOME"/gtk-3.0/settings.ini ]; then
+        if grep -q "^$1=" "$XDG_CONFIG_HOME"/gtk-3.0/settings.ini; then
+            sed -i -E "s/($1=)(.*)/\1$2/g" "$XDG_CONFIG_HOME"/gtk-3.0/settings.ini
+        else
+            echo "$1=$2" >> "$XDG_CONFIG_HOME"/gtk-3.0/settings.ini
+        fi
+    else
+        mkdir -p "$XDG_CONFIG_HOME"/gtk-3.0
+        echo "[Settings]" >> "$XDG_CONFIG_HOME"/gtk-3.0/settings.ini
+        echo "$1=$2" >> "$XDG_CONFIG_HOME"/gtk-3.0/settings.ini
+    fi
+}
+
+set_icon_theme() {
+    gsettings set org.gnome.desktop.interface icon-theme "$1"
+    set_gtk_property "gtk-icon-theme-name" "$1"
+}
+
+set_gtk_theme() {
+    gsettings set org.gnome.desktop.interface gtk-theme "$1"
+    gsettings set org.gnome.desktop.wm.preferences theme "$1"
+    set_gtk_property "gtk-theme-name" "$1"
+}
+
+set_font() {
+    gsettings set org.gnome.desktop.interface font-name "$1"
+    set_gtk_property "gtk-font-name" "$1"
+}
+
+set_cursor() {
+    mkdir -p "$XDG_DATA_HOME/icons/default"
+    echo "[Icon Theme]
+Name=Default
+Comment=Default Cursor Theme
+Inherits=$1" > "$XDG_DATA_HOME/icons/default/index.theme"
+    gsettings set org.gnome.desktop.interface cursor-theme "$1"
+    set_gtk_property "gtk-cursor-theme-name" "$1"
+    if [ -n "$2" ]; then 
+        gsettings set org.gnome.desktop.interface cursor-size "$2"
+        set_gtk_property "gtk-cursor-theme-size" "$2"
+        riverctl xcursor-theme "$1" "$2" &> /dev/null
+        hyprctl setcursor "$1" "$2" &> /dev/null
+    else
+        riverctl xcursor-theme "$1" &> /dev/null
+        hyprctl setcursor "$1" 24 &> /dev/null
+    fi
+}
+
+list_themes() {
+    for theme in "$1"/*
+    do
+        if [[ -d "$theme" && -f "$theme/index.theme" && ! -f "$theme/cursor.theme" ]]; then
+            basename "$theme"
+        fi
+    done
+}
+
+list_cursors() {
+    for theme in "$1"/*
+    do
+        if [[ -d "$theme" && -f "$theme/index.theme" && -f "$theme/cursor.theme" ]]; then
+            basename "$theme"
+        fi
+    done
+}
+
+main() {
+    if [ "$1" = "-h" ]; then
+        echo "Usage:"
+        echo "  $(basename "$0") [theme-name]"
+        echo "  $(basename "$0") -i [icon-theme-name]"
+        echo "  $(basename "$0") -c [cursor-theme-name] [cursor-theme-size]"
+        exit 1
+    fi
+
+    type=0
+    if [ "$1" = "-i" ]; then
+        type=1
+        shift
+    elif [ "$1" = "-c" ]; then
+        type=2
+        shift
+    fi
+
+    case "$type" in
+        0)
+            readarray -t themes < <(list_themes /usr/share/themes)
+            readarray -t usrthemes < <(list_themes ~/.local/share/themes)
+            ;;
+        1)
+            readarray -t themes < <(list_themes /usr/share/icons)
+            readarray -t usrthemes < <(list_themes ~/.local/share/icons)
+            ;;
+        2)
+            readarray -t themes < <(list_cursors /usr/share/icons)
+            readarray -t usrthemes < <(list_cursors ~/.local/share/icons)
+            ;;
+    esac
+
+    themes+=("${usrthemes[@]}")
+
+    readarray -t sorted_themes < <(echo "${themes[@]}" | tr ' ' '\n' | sort -u)
+
+    selected="$1"
+
+    if [ -z "$selected" ] || ! array_contains "${sorted_themes[*]} Adwaita" "$selected"; then
+        echo "Available themes:"
+        for theme in "${sorted_themes[@]}"; do
+            echo "  $theme"
+        done
+        exit 1;
+    fi
+
+    if [ "$type" = 0 ]; then
+        set_gtk_theme "$selected"
+    elif [ "$type" = 1 ]; then
+        set_icon_theme "$selected"
+    elif [ "$type" = 2 ]; then
+        cursor_size="$2"
+        if [ -z "$cursor_size" ]; then
+            cursor_size="$(gsettings get org.gnome.desktop.interface cursor-size)"
+        fi
+        if [ -z "$cursor_size" ]; then
+            cursor_size=24
+        fi
+        set_cursor "$selected" "$cursor_size"
+    fi
+}
+
+main "$@"
+exit 0
