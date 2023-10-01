@@ -1,0 +1,75 @@
+#compdef gtk-theme
+
+list_themes() {
+    exclude=("default" "hicolor" "locolor")
+    for theme in "$1"/*
+    do
+        local basename="$(basename "$theme")"
+        if ((${exclude[(Ie)$basename]})); then
+            continue
+        fi
+        if [[ -d "$theme" && -f "$theme/index.theme" && ! -f "$theme/cursor.theme" ]]; then
+            echo "$basename"
+        fi
+    done
+}
+
+list_cursors() {
+    exclude=("default" "hicolor" "locolor")
+    for theme in "$1"/*
+    do
+        local basename="$(basename "$theme")"
+        if ((${exclude[(Ie)$basename]})); then
+            continue
+        fi
+        if [[ -d "$theme" && -f "$theme/index.theme" && -d "$theme/cursors" ]]; then
+            echo $basename
+        fi
+    done
+}
+
+_list_all_cursors() {
+    local -a themes
+    local -a usrthemes
+
+    themes=(${(f)"$(list_cursors /usr/share/icons)"})
+    usrthemes=(${(f)"$(list_cursors $HOME/.local/share/icons)"})
+
+    themes+=("${usrthemes[@]}")
+    compadd "$@" -a themes
+}
+
+_list_all_themes() {
+    local -a themes
+    local -a usrthemes
+    
+    themes=(${(f)"$(list_themes /usr/share/themes)"})
+    usrthemes=(${(f)"$(list_themes $HOME/.local/share/themes)"})
+    
+    themes+=("${usrthemes[@]}")
+    compadd "$@" -a themes
+}
+
+_list_all_icons() {
+    local -a themes
+    local -a usrthemes
+    
+    themes=(${(f)"$(list_themes /usr/share/icons)"})
+    usrthemes=(${(f)"$(list_themes $HOME/.local/share/icons)"})
+    
+    themes+=("${usrthemes[@]}")
+    compadd "$@" -a themes
+}
+
+_default() {
+    if (( CURRENT == 2 )); then
+        _list_all_themes
+    fi
+}
+
+_arguments -S -s\
+    '(-f)'-f'[Set font family and size]' \
+    '(-c)'-c'[Set xcursor theme]:cursortheme:_list_all_cursors' \
+    '(-i)'-i'[Set GTK icon theme]:icontheme:_list_all_icons' \
+    '(-h --help)'{-h,--help}'[Display this help]' \
+    '*:default:_default'

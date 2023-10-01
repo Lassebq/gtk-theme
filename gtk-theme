@@ -12,15 +12,17 @@ array_contains() {
 
 set_gtk_property() {
     # $1 property $2 value
+    if [ -z "$GTK2_RC_FILES" ]; then
+        GTK2_RC_FILES="$HOME/.gtkrc-2.0"
+    fi
+
     if [ -f "$GTK2_RC_FILES" ]; then
         if grep -q "^$1=" "$GTK2_RC_FILES"; then
             sed -i -E "s/($1=\")(.*)(\")/\1$2\3/g" "$GTK2_RC_FILES"
         else
             echo "$1=\"$2\"" >> "$GTK2_RC_FILES"
         fi
-    elif [ -f "$HOME/.gtkrc-2.0" ]; then
-        sed -i -E "s/($1=\")(.*)(\")/\1$2\3/g" "$HOME/.gtkrc-2.0"
-    elif [ -n "$GTK2_RC_FILES" ]; then        
+    else        
         mkdir -p "$(dirname "$GTK2_RC_FILES")"
         echo "$1=\"$2\"" >> "$GTK2_RC_FILES"
     fi
@@ -74,8 +76,12 @@ Inherits=$1" > "$XDG_DATA_HOME/icons/default/index.theme"
 }
 
 list_themes() {
+    exclude=("default" "hicolor" "locolor")
     for theme in "$1"/*
     do
+        if array_contains "${exclude[*]}" "$(basename "$theme")"; then
+            continue
+        fi
         if [[ -d "$theme" && -f "$theme/index.theme" && ! -f "$theme/cursor.theme" ]]; then
             basename "$theme"
         fi
@@ -83,16 +89,20 @@ list_themes() {
 }
 
 list_cursors() {
+    exclude=("default" "hicolor" "locolor")
     for theme in "$1"/*
     do
-        if [[ -d "$theme" && -f "$theme/index.theme" && -f "$theme/cursor.theme" ]]; then
+        if array_contains "${exclude[*]}" "$(basename "$theme")"; then
+            continue
+        fi
+        if [[ -d "$theme" && -f "$theme/index.theme" && -d "$theme/cursors" ]]; then
             basename "$theme"
         fi
     done
 }
 
 main() {
-    if [ "$1" = "-h" ]; then
+    if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
         echo "Usage:"
         echo "  $(basename "$0") [theme-name]"
         echo "  $(basename "$0") -i [icon-theme-name]"
@@ -143,7 +153,7 @@ main() {
 
     readarray -t sorted_themes < <(echo "${themes[@]}" | tr ' ' '\n' | sort -u)
 
-    if [ -z "$selected" ] || ! array_contains "${sorted_themes[*]} Adwaita" "$selected"; then
+    if [ -z "$selected" ] || ! array_contains "${sorted_themes[*]}" "$selected"; then
         echo "Available themes:"
         for theme in "${sorted_themes[@]}"; do
             echo "  $theme"
