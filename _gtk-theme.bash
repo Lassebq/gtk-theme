@@ -1,5 +1,3 @@
-#compdef gtk-theme
-
 contains() {
     while read -r line
     do
@@ -66,25 +64,37 @@ list_cursors() {
     done | sort -u
 }
 
-_list_all_cursors() {
-    local -a themes=(${(f)"$(list_cursors)"})
-    compadd "$@" -a themes
+_gtk-theme() {
+    local i cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-f -t -c -i -h -m --help"
+
+    case "${prev}" in
+        -m)
+            COMPREPLY=( $(compgen -f "${cur}") )
+            return 0
+            ;;
+        -f)
+            COMPREPLY=( $(compgen -f "${cur}") )
+            return 0
+            ;;
+        -t)
+            COMPREPLY=( $(compgen -W "$(list_themes)" -- "${cur}") )
+            return 0
+            ;;
+        -i)
+            COMPREPLY=( $(compgen -W "$(list_icons)" -- "${cur}") )
+            return 0
+            ;;
+        -c)
+            COMPREPLY=( $(compgen -W "$(list_cursors)" -- "${cur}") )
+            return 0
+            ;;
+    esac
+
+    COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
 }
 
-_list_all_themes() {
-    local -a themes=(${(f)"$(list_themes)"})
-    compadd "$@" -a themes
-}
-
-_list_all_icons() {
-    local -a themes=(${(f)"$(list_icons)"})
-    compadd "$@" -a themes
-}
-
-_arguments -S -s\
-    '(-f)'-f'[Set font family and size]' \
-    '(-m)'-m'[Set monospace font family and size]' \
-    '(-t)'-t'[Set GTK theme]:gtktheme:_list_all_themes' \
-    '(-c)'-c'[Set xcursor theme]:cursortheme:_list_all_cursors' \
-    '(-i)'-i'[Set GTK icon theme]:icontheme:_list_all_icons' \
-    '(-h --help)'{-h,--help}'[Display this help]'
+complete -F _gtk-theme -o bashdefault -o default gtk-theme
