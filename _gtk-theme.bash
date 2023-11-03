@@ -69,7 +69,7 @@ _gtk-theme() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="-f -t -c -i -h -m --help"
+    opts="-l -d -f -t -c -i -h -m --help"
 
     case "${prev}" in
         -m)

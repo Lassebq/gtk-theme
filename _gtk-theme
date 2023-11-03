@@ -82,9 +82,11 @@ _list_all_icons() {
 }
 
 _arguments -S -s\
+    '(-l)'-l'[Prefer light theme]' \
+    '(-d)'-d'[Prefer dark theme]' \
     '(-f)'-f'[Set font family and size]' \
     '(-m)'-m'[Set monospace font family and size]' \
     '(-t)'-t'[Set GTK theme]:gtktheme:_list_all_themes' \
     '(-c)'-c'[Set xcursor theme]:cursortheme:_list_all_cursors' \
     '(-i)'-i'[Set GTK icon theme]:icontheme:_list_all_icons' \
-    '(-h --help)'{-h,--help}'[Display this help]'
+    '(-h --help)'{-h,--help}'[Display help]'

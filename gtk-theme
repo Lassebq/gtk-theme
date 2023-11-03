@@ -22,7 +22,6 @@ invalid_theme() {
     for theme1 in $(echo $themes); do
         echo "  $theme1"
     done
-    exit 1;
 }
 
 array() {
@@ -186,7 +185,15 @@ set_gtk_theme() {
     fi
 }
 
+is_valid_font() {
+    fontname=$(echo $1 | sed 's/ [0-9]*$//g')
+    [ -n "$fontname" ] && fc-list -f "%{family[0]}\n%{family[1]}\n" | grep -q -x "$fontname"
+}
+
 set_font() {
+    if ! is_valid_font "$1"; then
+        return 1;
+    fi
     gsettings set org.gnome.desktop.interface font-name "$1"
     gsettings set org.gnome.desktop.wm.preferences titlebar-font "$1"
     gsettings set org.cinnamon.desktop.interface font-name "$1"
@@ -200,6 +207,9 @@ set_font() {
 }
 
 set_monospace_font() {
+    if ! is_valid_font "$1"; then
+        return 1;
+    fi
     gsettings set org.gnome.desktop.interface monospace-font-name "$1"
     gsettings set org.mate.interface monospace-font-name "$1"
     set_xfce_property "xsettings" "/Gtk/MonospaceFontName" "$1"
@@ -223,15 +233,19 @@ Inherits=$1" > "$XDG_DATA_HOME/icons/default/index.theme"
         gsettings set org.gnome.desktop.interface cursor-size "$2"
         set_gtk_property "gtk-cursor-theme-size" "$2"
         set_xfce_property "xsettings" "/Gtk/CursorThemeSize" "$2"
-        riverctl xcursor-theme "$1" "$2" > /dev/null
-        hyprctl setcursor "$1" "$2" > /dev/null
+        riverctl xcursor-theme "$1" "$2" > /dev/null 2>&1
+        hyprctl setcursor "$1" "$2" > /dev/null 2>&1
     else
-        riverctl xcursor-theme "$1" 24 > /dev/null
-        hyprctl setcursor "$1" 24 > /dev/null
+        riverctl xcursor-theme "$1" 24 > /dev/null 2>&1
+        hyprctl setcursor "$1" 24 > /dev/null 2>&1
     fi
 }
 
-is_arg() {
+set_colorscheme() {
+    gsettings set org.gnome.desktop.interface color-scheme "prefer-$1"
+}
+
+is_param() {
     case "$1" in
         -*)
             return 0;;
@@ -247,6 +261,8 @@ main() {
         echo "  $(basename "$0") -c [cursor-theme-name] [cursor-theme-size]"
         echo "  $(basename "$0") -f [font-name size]"
         echo "  $(basename "$0") -m [monospace-font-name size]"
+        echo "  $(basename "$0") -l"
+        echo "  $(basename "$0") -d"
         echo
         echo "You can also use multiple parameters per command:"
         echo "  $(basename "$0") -f \"JetBrainsMono NF 12\" -t Nordic"
@@ -255,6 +271,9 @@ main() {
 
     if [ -z "$XDG_DATA_HOME" ]; then
         XDG_DATA_HOME=~/.local/share
+    fi
+    if [ -z "$XDG_CONFIG_HOME" ]; then
+        XDG_CONFIG_HOME=~/.config
     fi
     if [ -z "$GTK2_RC_FILES" ]; then
         GTK2_RC_FILES="$HOME/.gtkrc-2.0"
@@ -275,7 +294,7 @@ main() {
                 cursor_size="$3"
                 if [ -z "$cursor_theme" ]; then
                     shift 1
-                elif [ -z "$cursor_size" ] || is_arg "$cursor_size"; then
+                elif [ -z "$cursor_size" ] || is_param "$cursor_size"; then
                     cursor_size="$(gsettings get org.gnome.desktop.interface cursor-size)"
                     [ -z "$cursor_size" ] && cursor_size=24
                     shift 2
@@ -291,6 +310,14 @@ main() {
             "-m")
                 set_monospace_font "$2" || exit 1
                 shift 2
+                ;;
+            "-d")
+                set_colorscheme "dark"
+                shift 1
+                ;;
+            "-l")
+                set_colorscheme "light"
+                shift 1
                 ;;
             *)
                 shift 1
