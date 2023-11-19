@@ -19,6 +19,11 @@ array() {
 exclude="$(array "default" "hicolor" "locolor")"
 
 is_valid_theme() {
+    # Adwaita theme may not be present if gnome-themes-extra is not installed, but it's still valid
+    if [ "${1##/*}" = "Adwaita" ]; then
+        return 0
+    fi
+
     if echo "$exclude" | contains "${1##*/}"; then
         return 1
     fi
@@ -26,12 +31,12 @@ is_valid_theme() {
 }
 
 list_themes() {
-    for theme in $(find /usr/share/themes ~/.themes "$XDG_DATA_HOME"/themes -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+    (for theme in $(find /usr/share/themes ~/.themes "$XDG_DATA_HOME"/themes -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
     do
         if is_valid_theme "$theme"; then
             basename "$theme"
         fi
-    done | sort -u
+    done; echo Adwaita) | sort -u
 }
 
 is_valid_icon_theme() {
@@ -81,12 +86,16 @@ _list_all_icons() {
     compadd "$@" -a themes
 }
 
+_list_colorschemes() {
+    local -a colorschemes=("default" "dark" "light")
+    compadd "$@" -a colorschemes
+}
+
 _arguments -S -s\
-    '(-l)'-l'[Prefer light theme]' \
-    '(-d)'-d'[Prefer dark theme]' \
-    '(-f)'-f'[Set font family and size]' \
-    '(-m)'-m'[Set monospace font family and size]' \
-    '(-t)'-t'[Set GTK theme]:gtktheme:_list_all_themes' \
-    '(-c)'-c'[Set xcursor theme]:cursortheme:_list_all_cursors' \
-    '(-i)'-i'[Set GTK icon theme]:icontheme:_list_all_icons' \
+    '(-s --scheme)'{-s,--scheme}'[Color scheme]:colorscheme:_list_colorschemes' \
+    '(-f --font)'{-f,--font}'[Set font family and size]' \
+    '(-m --monofont)'{-m,--monofont}'[Set monospace font family and size]' \
+    '(-t --theme)'{-t,--theme}'[Set GTK theme]:gtktheme:_list_all_themes' \
+    '(-c --cursor)'{-c,--cursor}'[Set xcursor theme]:cursortheme:_list_all_cursors' \
+    '(-i --icon)'{-i,--icon}'[Set GTK icon theme]:icontheme:_list_all_icons' \
     '(-h --help)'{-h,--help}'[Display help]'

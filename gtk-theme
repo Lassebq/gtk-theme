@@ -33,6 +33,11 @@ array() {
 exclude="$(array "default" "hicolor" "locolor")"
 
 is_valid_theme() {
+    # Adwaita theme may not be present if gnome-themes-extra is not installed, but it's still valid
+    if [ "${1##/*}" = "Adwaita" ]; then
+        return 0
+    fi
+
     if echo "$exclude" | contains "${1##/*}"; then
         return 1
     fi
@@ -40,12 +45,12 @@ is_valid_theme() {
 }
 
 list_themes() {
-    for theme in $(find /usr/share/themes ~/.themes "$XDG_DATA_HOME"/themes -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+    (for theme in $(find /usr/share/themes ~/.themes "$XDG_DATA_HOME"/themes -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
     do
         if is_valid_theme "$theme"; then
             basename "$theme"
         fi
-    done | sort -u
+    done; echo Adwaita) | sort -u
 }
 
 is_valid_icon_theme() {
@@ -152,8 +157,8 @@ set_icon_theme() {
         return 1
     fi
     gsettings set org.gnome.desktop.interface icon-theme "$1"
-    gsettings set org.cinnamon.desktop.interface icon-theme "$1"
-    gsettings set org.mate.interface icon-theme "$1"
+    gsettings set org.cinnamon.desktop.interface icon-theme "$1" 2>/dev/null
+    gsettings set org.mate.interface icon-theme "$1" 2>/dev/null
     set_gtk_property "gtk-icon-theme-name" "$1"
     set_xfce_property "xsettings" "/Net/IconThemeName" "$1"
 }
@@ -166,17 +171,17 @@ set_gtk_theme() {
     fi
     gsettings set org.gnome.desktop.interface gtk-theme "$1"
     gsettings set org.gnome.desktop.wm.preferences theme "$1"
-    gsettings set org.cinnamon.desktop.interface gtk-theme "$1"
-    gsettings set org.cinnamon.desktop.wm.preferences theme "$1"
-    gsettings set org.mate.interface gtk-theme "$1"
+    gsettings set org.cinnamon.desktop.interface gtk-theme "$1" 2>/dev/null
+    gsettings set org.cinnamon.desktop.wm.preferences theme "$1" 2>/dev/null
+    gsettings set org.mate.interface gtk-theme "$1" 2>/dev/null
     if [ -d "$theme_path/gnome-shell" ] || [ "$1" = "Adwaita" ] || [ "$1" = "Adwaita-dark" ]; then
-        gsettings set org.gnome.shell.extensions.user-theme name "$1"
+        gsettings set org.gnome.shell.extensions.user-theme name "$1" 2>/dev/null
     fi
     if [ -d "$theme_path/cinnamon" ]; then
-        gsettings set org.cinnamon.theme name "$1"
+        gsettings set org.cinnamon.theme name "$1" 2>/dev/null
     fi
     if [ -d "$theme_path/metacity-1" ]; then
-        gsettings set org.mate.Marco.general theme "$1"
+        gsettings set org.mate.Marco.general theme "$1" 2>/dev/null
     fi
     set_gtk_property "gtk-theme-name" "$1"
     set_xfce_property "xsettings" "/Net/ThemeName" "$1"
@@ -196,11 +201,11 @@ set_font() {
     fi
     gsettings set org.gnome.desktop.interface font-name "$1"
     gsettings set org.gnome.desktop.wm.preferences titlebar-font "$1"
-    gsettings set org.cinnamon.desktop.interface font-name "$1"
-    gsettings set org.cinnamon.desktop.wm.preferences titlebar-font "$1"
-    gsettings set org.mate.interface font-name "$1"
-    gsettings set org.mate.Marco.general titlebar-font "$1"
-    gsettings set org.mate.caja.desktop font "$1"
+    gsettings set org.cinnamon.desktop.interface font-name "$1" 2>/dev/null
+    gsettings set org.cinnamon.desktop.wm.preferences titlebar-font "$1" 2>/dev/null
+    gsettings set org.mate.interface font-name "$1" 2>/dev/null
+    gsettings set org.mate.Marco.general titlebar-font "$1" 2>/dev/null
+    gsettings set org.mate.caja.desktop font "$1" 2>/dev/null
     set_gtk_property "gtk-font-name" "$1"
     set_xfce_property "xsettings" "/Gtk/FontName" "$1"
     set_xfce_property "xfwm4" "/general/title_font" "$1"
@@ -211,7 +216,7 @@ set_monospace_font() {
         return 1;
     fi
     gsettings set org.gnome.desktop.interface monospace-font-name "$1"
-    gsettings set org.mate.interface monospace-font-name "$1"
+    gsettings set org.mate.interface monospace-font-name "$1" 2>/dev/null
     set_xfce_property "xsettings" "/Gtk/MonospaceFontName" "$1"
 }
 
@@ -236,13 +241,37 @@ Inherits=$1" > "$XDG_DATA_HOME/icons/default/index.theme"
         riverctl xcursor-theme "$1" "$2" > /dev/null 2>&1
         hyprctl setcursor "$1" "$2" > /dev/null 2>&1
     else
-        riverctl xcursor-theme "$1" 24 > /dev/null 2>&1
-        hyprctl setcursor "$1" 24 > /dev/null 2>&1
+        cursor_size="$(gsettings get org.gnome.desktop.interface cursor-size)"
+        if [ -z "$cursor_size" ]; then
+            cursor_size=24;
+        fi
+        riverctl xcursor-theme "$1" "$cursor_size" > /dev/null 2>&1
+        hyprctl setcursor "$1" "$cursor_size" > /dev/null 2>&1
     fi
+    # Last exit code could be 1 sometimes
+    return 0
 }
 
 set_colorscheme() {
-    gsettings set org.gnome.desktop.interface color-scheme "prefer-$1"
+    case "$1" in
+    light)
+        gsettings set org.gnome.desktop.interface color-scheme "prefer-$1"
+        gsettings set org.x.apps.portal color-scheme "prefer-$1"
+        set_gtk_property "gtk-application-prefer-dark-theme" "false"
+        ;;
+    dark)
+        gsettings set org.gnome.desktop.interface color-scheme "prefer-$1"
+        gsettings set org.x.apps.portal color-scheme "prefer-$1"
+        set_gtk_property "gtk-application-prefer-dark-theme" "true"
+        ;;
+    default)
+        gsettings set org.gnome.desktop.interface color-scheme "$1"
+        gsettings set org.x.apps.portal color-scheme "$1"
+        ;;
+    *)
+        return 1
+        ;;
+    esac
 }
 
 is_param() {
@@ -256,16 +285,15 @@ is_param() {
 main() {
     if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
         echo "Usage:"
-        echo "  $(basename "$0") -t [theme-name]"
-        echo "  $(basename "$0") -i [icon-theme-name]"
-        echo "  $(basename "$0") -c [cursor-theme-name] [cursor-theme-size]"
-        echo "  $(basename "$0") -f [font-name size]"
-        echo "  $(basename "$0") -m [monospace-font-name size]"
-        echo "  $(basename "$0") -l"
-        echo "  $(basename "$0") -d"
+        echo "  $(basename "$0") --theme [theme-name]"
+        echo "  $(basename "$0") --icon [icon-theme-name]"
+        echo "  $(basename "$0") --cursor [cursor-theme-name] [cursor-theme-size]"
+        echo "  $(basename "$0") --font [font-name size]"
+        echo "  $(basename "$0") --monofont [monospace-font-name size]"
+        echo "  $(basename "$0") --colorscheme [default|dark|light]"
         echo
         echo "You can also use multiple parameters per command:"
-        echo "  $(basename "$0") -f \"JetBrainsMono NF 12\" -t Nordic"
+        echo "  $(basename "$0") --font \"JetBrainsMono NF 12\" --theme Nordic"
         exit 1
     fi
 
@@ -281,15 +309,15 @@ main() {
 
     while [ -n "$1" ]; do
         case "$1" in
-            "-t")
+            "-t"|"--theme")
                 set_gtk_theme "$2" || exit 1
                 shift 2
                 ;;
-            "-i")
+            "-i"|"--icon")
                 set_icon_theme "$2" || exit 1
                 shift 2
                 ;;
-            "-c")
+            "-c"|"--cursor")
                 cursor_theme="$2"
                 cursor_size="$3"
                 if [ -z "$cursor_theme" ]; then
@@ -303,21 +331,17 @@ main() {
                 fi
                 set_cursor "$cursor_theme" "$cursor_size" || exit 1
                 ;;
-            "-f")
+            "-f"|"--font")
                 set_font "$2" || exit 1
                 shift 2
                 ;;
-            "-m")
+            "-m"|"--monofont")
                 set_monospace_font "$2" || exit 1
                 shift 2
                 ;;
-            "-d")
-                set_colorscheme "dark"
-                shift 1
-                ;;
-            "-l")
-                set_colorscheme "light"
-                shift 1
+            "-s"|"--scheme")
+                set_colorscheme "$2" || exit 1
+                shift 2
                 ;;
             *)
                 shift 1
